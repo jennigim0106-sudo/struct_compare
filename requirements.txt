@@ -1,0 +1,7 @@
+streamlit
+# pymol2
+pandas
+numpy
+requests
+biopython
+gemmi
