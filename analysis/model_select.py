@@ -2,31 +2,33 @@ import os
 
 # analysis/model_select.py
 
-def find_pdb_files(root):
-    pdbs = []
+def find_files_by_ext(root, extensions):
+    files = []
     for dirpath, _, filenames in os.walk(root):
         for f in filenames:
-            if f.endswith(".pdb"):
-                pdbs.append(os.path.join(dirpath, f))
-    return pdbs
+            if any(f.endswith(ext) for ext in extensions):
+                files.append(os.path.join(dirpath, f))
+    return files
 
 
 def load_representative_model(tmpdir, tool):
-    pdb_files = find_pdb_files(tmpdir)
-
-    if not pdb_files:
-        raise ValueError("No PDB files found in zip")
-
     if tool == "boltz":
-        # e.g. model_0.pdb
-        pdb_files.sort(key=lambda x: ("model_0" not in x, x))
+        files = find_files_by_ext(tmpdir, [".pdb"])
+        if not files:
+            raise ValueError("No PDB files found for boltz")
 
-    # ?? TODO: schrodinger uses other file dir. (x pdb -> maegz)
+        # model_0 우선
+        files.sort(key=lambda x: ("model_0" not in os.path.basename(x), x))
+        return files[0]
+
     elif tool == "schrodinger":
-        # e.g. poseviewer, *_pv.pdb
-        pdb_files.sort(key=lambda x: ("pv" not in x.lower(), x))
+        files = find_files_by_ext(tmpdir, [".mae", ".maegz"])
+        if not files:
+            raise ValueError("No MAE/MAEGZ files found for schrodinger")
+
+        # poseviewer 우선
+        files.sort(key=lambda x: ("pv" not in os.path.basename(x).lower(), x))
+        return files[0]
 
     else:
         raise ValueError(f"Unknown tool: {tool}")
-    
-    return pdb_files[0]

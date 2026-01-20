@@ -4,7 +4,6 @@ import os
 import tempfile
 import pandas as pd
 from analysis.schrodinger_io import extract_schrodinger_zip, parse_glide_csv
-from analysis.pymol_ligand_rmsd import compute_ligand_rmsd
 from analysis.schrodinger_pose_export import export_selected_poses_to_pdb
 from analysis import pymol_ligand_rmsd as plr
 from analysis.io import fetch_pdb_structure
@@ -96,7 +95,7 @@ if st.button("Run Analysis"):
         st.error("Please enter a PDB ID")
         st.stop()
 
-    if not schro_pose_selection:
+    if (schro_zip is not None) and (not schro_pose_selection):
         st.error("Please select at least one docking pose")
         st.stop()
 
@@ -116,7 +115,7 @@ if st.button("Run Analysis"):
             results["Boltz"] = plr.analyze_runs(cmd, exp_file, "exp", boltz_zips, tool="boltz")
 
         # Schrodinger runs
-            
+        '''
         pv_maegz = None
 
         for root, _, files in os.walk(schro_pose_selection["extract_dir"]):
@@ -171,6 +170,6 @@ if st.button("Run Analysis"):
                 cmd.delete(mob_obj)
 
             results["Schrodinger"] = schro_results
-
+        '''
 
     st.write(results)

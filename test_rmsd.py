@@ -4,7 +4,9 @@ from analysis import pymol_ligand_rmsd as plr
 from analysis.io import fetch_pdb_structure
 
 pdb_id = "6NJS"
-boltz_zips = ["/Users/gimjimin/Desktop/2026_intern/05_compare structure/Target/STAT3/00_STAT3-small molecule/6NJS (SD36)/boltz_run/6njs_2.zip"]
+boltz_zips = ["/Users/gimjimin/Desktop/2026_intern/05_compare structure/Target/STAT3/00_STAT3-small molecule/6NJS (SD36)/boltz_run/6njs_1.zip",
+              "/Users/gimjimin/Desktop/2026_intern/05_compare structure/Target/STAT3/00_STAT3-small molecule/6NJS (SD36)/boltz_run/6njs_2.zip",
+              "/Users/gimjimin/Desktop/2026_intern/05_compare structure/Target/STAT3/00_STAT3-small molecule/6NJS (SD36)/boltz_run/6njs_3.zip"]
 
 def get_experimental_structure(pdb_id):
     save_dir = "./data/pdb"
