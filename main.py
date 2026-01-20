@@ -7,6 +7,7 @@ from analysis.schrodinger_io import extract_schrodinger_zip, parse_glide_csv
 from analysis.schrodinger_pose_export import export_selected_poses_to_pdb
 from analysis import pymol_ligand_rmsd as plr
 from analysis.io import fetch_pdb_structure
+from analysis.pymol_align import align_pose_protein_to_reference
 
 
 
@@ -131,23 +132,22 @@ if st.button("Run Analysis"):
             )
 
         # Schrodinger runs
-        
+        # Schrodinger runs
+
         pv_maegz = None
 
         for root, _, files in os.walk(schro_pose_selection["extract_dir"]):
             for f in files:
-                if (f.endswith("_pv.maegz")) or (f.endswith("_pv.mae")):
+                if f.endswith("_pv.maegz") or f.endswith("_pv.mae"):
                     pv_maegz = os.path.join(root, f)
                     break
             if pv_maegz is not None:
                 break
 
-
         if pv_maegz is None:
             raise FileNotFoundError(
                 "No *_pv.maegz file found in extracted Schrödinger zip"
             )
-
 
         pose_pdb_files = export_selected_poses_to_pdb(
             pv_maegz_path=pv_maegz,
@@ -159,24 +159,27 @@ if st.button("Run Analysis"):
             schro_results = []
 
             cmd.remove("hydro")
-            schro_extract_dir = schro_pose_selection["extract_dir"]
 
-            for pose_id in schro_pose_selection["selected_poses"]:
-                for pose_pdb in pose_pdb_files:
-                    pose_id = os.path.basename(pose_pdb).replace(".pdb", "")
-                    mob_obj = f"schro_{pose_id}"
-                    cmd.load(pose_pdb, mob_obj)
-
+            for pose_pdb in pose_pdb_files:
+                pose_id = os.path.basename(pose_pdb).replace(".pdb", "")
                 mob_obj = f"schro_{pose_id}"
+
+                # load pose (protein + ligand)
                 cmd.load(pose_pdb, mob_obj)
-                
-                lig_rmsd = compute_ligand_rmsd(
-                    cmd,
-                    exp_ori=exp_file,
-                    ref_obj="exp",
-                    mob_obj=mob_obj,
-                    tool_is_boltz=False
+
+                # ★ 핵심 추가: Schrödinger protein alignment
+                align_pose_protein_to_reference(
+                    pose_protein=f"{mob_obj} and polymer.protein",
+                    ref_protein="exp and polymer.protein",
+                    method="align"
                 )
+
+                lig_rmsd = plr.compute_ligand_rmsd(
+                    cmd,
+                    ref_obj="exp",
+                    mob_obj=mob_obj
+                )
+
 
                 schro_results.append({
                     "pose_id": pose_id,
@@ -186,6 +189,7 @@ if st.button("Run Analysis"):
                 cmd.delete(mob_obj)
 
             results["Schrodinger"] = schro_results
+
         
 
     st.write(results)

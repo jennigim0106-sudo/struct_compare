@@ -169,3 +169,44 @@ def analyze_runs(cmd, exp_ori, exp_obj, zip_files, tool):
     mean_rmsd = sum(lig_rmsds) / len(lig_rmsds)
 
     return {"per_run": run_results, "mean_RMSD": mean_rmsd}
+
+
+
+
+from pymol import cmd
+
+
+def compute_ligand_rmsd(
+    cmd,
+    ref_obj: str,
+    mob_obj: str,
+    ref_ligand_sel: str = None,
+    mob_ligand_sel: str = None
+):
+
+    # --- ligand selection ---
+    if ref_ligand_sel is None:
+        ref_ligand_sel = f"{ref_obj} and not polymer and not solvent"
+
+    if mob_ligand_sel is None:
+        mob_ligand_sel = f"{mob_obj} and not polymer and not solvent"
+
+    # --- sanity check ---
+    if cmd.count_atoms(ref_ligand_sel) == 0:
+        raise ValueError(f"No ligand atoms found in reference: {ref_ligand_sel}")
+
+    if cmd.count_atoms(mob_ligand_sel) == 0:
+        raise ValueError(f"No ligand atoms found in mobile pose: {mob_ligand_sel}")
+
+    # --- remove hydrogens (GUI와 동일) ---
+    cmd.remove(f"{ref_ligand_sel} and hydro")
+    cmd.remove(f"{mob_ligand_sel} and hydro")
+
+    # --- RMSD calculation (GUI 방식) ---
+    rmsd = cmd.align(
+        mob_ligand_sel,
+        ref_ligand_sel,
+        cycles=0
+    )[0]
+
+    return rmsd
