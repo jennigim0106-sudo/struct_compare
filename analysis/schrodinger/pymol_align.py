@@ -3,7 +3,7 @@
 
 def align_schrodinger_protein_to_reference(
     cmd,
-    group_name: str,
+    group_name: str = "schro",
     ref_obj: str = "exp",
 ) -> float:
 

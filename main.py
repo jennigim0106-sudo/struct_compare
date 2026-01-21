@@ -8,13 +8,13 @@ from analysis import pymol_ligand_rmsd as plr
 from analysis.io import fetch_pdb_structure
 
 from analysis.schrodinger.io import (
+    convert_maegz_to_pdb,
     extract_schrodinger_zip,
     find_glide_csv,
 )
 from analysis.schrodinger.parse import parse_glide_csv
 from analysis.schrodinger.poses import (
     find_pv_maegz,
-    parse_group_name_from_log,
     get_docking_pose_objects,
     map_selected_poses,
 )
@@ -128,14 +128,14 @@ if st.button("Run Analysis"):
         # Schrodinger runs
 
         if schro_workdir is not None:
-            pv_maegz = find_pv_maegz(schro_workdir)
-            group_name = parse_group_name_from_log(schro_workdir)
 
             # load pv structure
-            cmd.load(pv_maegz)
+            pv_maegz = find_pv_maegz(schro_workdir)
+            schro_pdb = convert_maegz_to_pdb(pv_maegz)
+            cmd.load(schro_pdb, "schro")
 
             # collect ligand pose objects
-            ligand_objects = get_docking_pose_objects(cmd, group_name)
+            ligand_objects = get_docking_pose_objects(cmd, group_name="schro")
 
             # map selected poses
             selected_pose_map = map_selected_poses(
@@ -146,14 +146,14 @@ if st.button("Run Analysis"):
             # initial settings for results dictionary
             results["Schrodinger"] = {
                 "pv_maegz": pv_maegz,
-                "group_name": group_name,
+                "group_name": "schro",
                 "selected_poses": selected_pose_map,
             }
 
             # protein alignment (Schrödinger -> experimental)
             protein_rmsd = align_schrodinger_protein_to_reference(
                 cmd,
-                group_name=group_name,
+                group_name="schro",
                 ref_obj="exp",
             )
             results["Schrodinger"]["protein_rmsd"] = protein_rmsd

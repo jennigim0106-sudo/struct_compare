@@ -4,6 +4,7 @@ from pathlib import Path
 import re
 
 
+
 def find_pv_maegz(workdir: str) -> str:
     workdir = Path(workdir)
     maegz_files = list(workdir.rglob("*_pv.maegz"))
@@ -18,6 +19,7 @@ def find_pv_maegz(workdir: str) -> str:
 
     return str(maegz_files[0])
 
+################################
 
 def parse_group_name_from_log(workdir: str) -> str:
     workdir = Path(workdir)
@@ -39,7 +41,7 @@ def parse_group_name_from_log(workdir: str) -> str:
 
 
 def get_docking_pose_objects(cmd, group_name: str) -> list[str]:
-    members = cmd.get_object_list(f"({group_name})")
+    members = cmd.get_object_list(group_name)
 
     ligand_objs = [
         obj for obj in members

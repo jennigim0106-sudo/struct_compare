@@ -46,31 +46,21 @@ def find_glide_csv(workdir: str) -> str:
 
     return str(csv_files[0])
 
+import gzip
+import shutil
+import subprocess
 
+def convert_maegz_to_pdb(maegz_path: str) -> str:
 
+    mae_path = maegz_path.replace("_pv.maegz", "_pv.mae")
+    pdb_path = mae_path.replace(".mae", ".pdb")
 
-# NOTE:
-# This function is currently unused.
-# Kept as a fallback utility in case PDB-based workflows are needed later.
+    # 1. decompress maegz -> mae
+    with gzip.open(maegz_path, "rb") as f_in:
+        with open(mae_path, "wb") as f_out:
+            shutil.copyfileobj(f_in, f_out)
 
-def find_schrodinger_complex_pdb(workdir: str) -> str:
-    """
-    Find a Schrödinger-exported complex PDB inside extracted directory.
-    Temporary rule:
-      - first *.pdb file found
-    """
-    pdb_candidates = []
+    # 2. mae -> pdb using structconvert
+    subprocess.run(["structconvert", "-imae", mae_path, "-opdb", pdb_path], check=True)
 
-    for root, _, files in os.walk(workdir):
-        for f in files:
-            if f.lower().endswith(".pdb"):
-                pdb_candidates.append(os.path.join(root, f))
-
-    if not pdb_candidates:
-        raise RuntimeError(
-            "No PDB file found in Schrödinger result. "
-            "Please export complex PDB from Maestro first."
-        )
-
-    return pdb_candidates[0]
-
+    return pdb_path

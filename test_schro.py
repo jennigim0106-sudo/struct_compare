@@ -3,9 +3,17 @@ import os
 import tempfile
 import pymol2
 from analysis.io import fetch_pdb_structure
-from analysis.schrodinger.io import extract_schrodinger_zip, find_glide_csv, find_schrodinger_complex_pdb
+from analysis.schrodinger.io import (
+    extract_schrodinger_zip,
+    find_glide_csv,
+    convert_maegz_to_pdb,
+)
 from analysis.schrodinger.parse import parse_glide_csv
-from analysis.schrodinger.poses import find_pv_maegz, parse_group_name_from_log, get_docking_pose_objects, map_selected_poses
+from analysis.schrodinger.poses import (
+    find_pv_maegz,
+    get_docking_pose_objects,
+    map_selected_poses,
+)
 from analysis.schrodinger.pymol_align import align_schrodinger_protein_to_reference
 
 # ---------- 설정 ----------
@@ -14,10 +22,8 @@ schro_zip_path = r"C:\Users\User01\Desktop\intern\Target\STAT3\00_STAT3-small mo
 selected_pose_ids = [1, 3]  # 테스트용 선택된 pose 번호 (i_i_glide_lignum)
 
 # ---------- 실험 구조 다운로드 ----------
-cif_file = fetch_pdb_structure(pdb_id, save_dir="./data/pdb")
-pdb_file = cif_file.replace(".cif", ".pdb")  # convert to PDB if fetch returns CIF
-print(f"CIF saved to: {cif_file}")
-print(f"PDB saved to: {pdb_file}")
+exp_file = fetch_pdb_structure(pdb_id, save_dir="./data/pdb")
+print(f"Experimental PDB saved to: {exp_file}")
 
 # ---------- Schrödinger ZIP 압축 해제 ----------
 schro_workdir = extract_schrodinger_zip(schro_zip_path)
@@ -27,32 +33,26 @@ print(f"Schrödinger workdir: {schro_workdir}")
 csv_path = find_glide_csv(schro_workdir)
 schro_df = parse_glide_csv(csv_path)
 print(f"Glide CSV loaded: {csv_path}")
+print(schro_df[["i_i_glide_lignum", "r_i_glide_gscore"]])
 
 # ---------- PyMOL headless session ----------
 with pymol2.PyMOL() as pymol:
     cmd = pymol.cmd
 
     # 1. 실험 구조 로드
-    cmd.load(pdb_file, "exp")
+    cmd.load(exp_file, "exp")
 
-    # 2. _pv.maegz 및 로그 파일에서 group_name 추출
+    # 2. .maegz -> .pdb 변환 후 로드
     pv_maegz = find_pv_maegz(schro_workdir)
-    group_name = parse_group_name_from_log(schro_workdir)
-    print(f"pv.maegz file: {pv_maegz}")
-    print(f"group_name: {group_name}")
+    schro_pdb = convert_maegz_to_pdb(pv_maegz)
+    cmd.load(schro_pdb, "schro")
+    print(f"Converted Schrödinger PDB: {schro_pdb}")
 
-    # 3. pv.maegz 로드
-    cmd.load(pv_maegz)
-
-    # 4. ligand 객체 수집 및 선택
-    ligand_objects = get_docking_pose_objects(cmd, group_name)
+    # 3. ligand 객체 수집 및 선택
+    ligand_objects = get_docking_pose_objects(cmd, "schro")
     selected_pose_map = map_selected_poses(ligand_objects, selected_pose_ids)
     print(f"Selected pose objects: {selected_pose_map}")
 
-    # 5. protein alignment (Schrödinger -> experimental)
-    protein_rmsd = align_schrodinger_protein_to_reference(
-        cmd,
-        group_name=group_name,
-        ref_obj="exp"
-    )
+    # 4. protein alignment (Schrödinger -> experimental)
+    protein_rmsd = align_schrodinger_protein_to_reference(cmd, group_name="schro", ref_obj="exp")
     print(f"Protein RMSD: {protein_rmsd:.3f} Å")
