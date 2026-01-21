@@ -3,11 +3,24 @@ import pymol2
 import os
 import tempfile
 import pandas as pd
-from analysis.schrodinger_io import extract_schrodinger_zip, parse_glide_csv
-from analysis.schrodinger_pose_export import export_selected_poses_to_pdb
+
 from analysis import pymol_ligand_rmsd as plr
 from analysis.io import fetch_pdb_structure
-from analysis.pymol_align import align_pose_protein_to_reference
+
+from analysis.schrodinger.io import (
+    extract_schrodinger_zip,
+    find_glide_csv,
+)
+from analysis.schrodinger.parse import parse_glide_csv
+from analysis.schrodinger.poses import (
+    find_pv_maegz,
+    parse_group_name_from_log,
+    get_docking_pose_objects,
+    map_selected_poses,
+)
+from analysis.schrodinger.pymol_align import (
+    align_schrodinger_protein_to_reference,
+)
 
 
 
@@ -36,57 +49,36 @@ boltz_zips = st.file_uploader(
 )
 
 schro_zip = st.file_uploader(
-    "Upload Schrödinger glide-dock result (.zip)",
-    type=["zip"],
-    accept_multiple_files=False
+    "Upload Schrödinger result (.zip)",
+    type=["zip"]
 )
 
-# --- Schrödinger docking pose selection ---
-schro_pose_selection = None
+# Preprocessing schrodinger file for selection
+schro_workdir = None
+schro_df = None
 
-if schro_zip is not None:
-    import tempfile
-    from analysis.schrodinger_io import extract_schrodinger_zip, parse_glide_csv
+if schro_zip is not None and "schro_workdir" not in st.session_state:
+    st.session_state["schro_workdir"] = extract_schrodinger_zip(schro_zip)
+    csv_path = find_glide_csv(st.session_state["schro_workdir"])
+    st.session_state["schro_df"] = parse_glide_csv(csv_path)
 
-    if "schro_tmpdir" not in st.session_state:
-        st.session_state["schro_tmpdir"] = tempfile.mkdtemp()
+schro_workdir = st.session_state.get("schro_workdir")
+schro_df = st.session_state.get("schro_df")
 
-    tmpdir = st.session_state["schro_tmpdir"]
+# pose selection
+selected_pose_ids = []
 
-    zip_path = os.path.join(tmpdir, schro_zip.name)
-    with open(zip_path, "wb") as f:
-        f.write(schro_zip.read())
+if schro_df is not None:
+    st.subheader("Schrödinger Docking Poses")
 
-    extract_dir = extract_schrodinger_zip(zip_path, tmpdir)
-    df = parse_glide_csv(extract_dir) # total parsed csv structure
-
-    st.subheader("Schrödinger docking poses (click to select)")
-
-    df_display = df[["pose_id", "glide_score"]].copy()
-    df_display["select"] = False
-
-    edited_df = st.data_editor(
-        df_display,
-        hide_index=True,
-        column_config={
-            "select": st.column_config.CheckboxColumn(
-                "Select",
-                help="Click to include/exclude this pose"
-            )
-        },
-        disabled=["pose_id", "glide_score"],
-        use_container_width=True
+    st.dataframe(
+        schro_df[["i_i_glide_lignum", "r_i_glide_gscore"]]
     )
 
-    selected_poses = edited_df.loc[edited_df["select"], "pose_id"].tolist()
-
-
-    schro_pose_selection = {
-        "zip_path": zip_path,
-        "extract_dir": extract_dir,
-        "selected_poses": selected_poses
-    }
-
+    selected_pose_ids = st.multiselect(
+        "Select docking poses",
+        options = schro_df["i_i_glide_lignum"].astype(int).tolist()
+    )
 
 
 
@@ -96,7 +88,8 @@ if st.button("Run Analysis"):
         st.error("Please enter a PDB ID")
         st.stop()
 
-    if (schro_zip is not None) and (not schro_pose_selection):
+
+    if (schro_zip is not None) and (not selected_pose_ids):
         st.error("Please select at least one docking pose")
         st.stop()
 
@@ -131,65 +124,39 @@ if st.button("Run Analysis"):
                 tool="boltz"
             )
 
+
         # Schrodinger runs
-        # Schrodinger runs
 
-        pv_maegz = None
+        if schro_workdir is not None:
+            pv_maegz = find_pv_maegz(schro_workdir)
+            group_name = parse_group_name_from_log(schro_workdir)
 
-        for root, _, files in os.walk(schro_pose_selection["extract_dir"]):
-            for f in files:
-                if f.endswith("_pv.maegz") or f.endswith("_pv.mae"):
-                    pv_maegz = os.path.join(root, f)
-                    break
-            if pv_maegz is not None:
-                break
+            # load pv structure
+            cmd.load(pv_maegz)
 
-        if pv_maegz is None:
-            raise FileNotFoundError(
-                "No *_pv.maegz file found in extracted Schrödinger zip"
+            # collect ligand pose objects
+            ligand_objects = get_docking_pose_objects(cmd, group_name)
+
+            # map selected poses
+            selected_pose_map = map_selected_poses(
+                ligand_objects,
+                selected_pose_ids
             )
 
-        pose_pdb_files = export_selected_poses_to_pdb(
-            pv_maegz_path=pv_maegz,
-            pose_ids=schro_pose_selection["selected_poses"],
-            out_dir=os.path.join(schro_pose_selection["extract_dir"], "pdb_poses")
-        )
+            # initial settings for results dictionary
+            results["Schrodinger"] = {
+                "pv_maegz": pv_maegz,
+                "group_name": group_name,
+                "selected_poses": selected_pose_map,
+            }
 
-        if schro_zip and schro_pose_selection:
-            schro_results = []
+            # protein alignment (Schrödinger -> experimental)
+            protein_rmsd = align_schrodinger_protein_to_reference(
+                cmd,
+                group_name=group_name,
+                ref_obj="exp",
+            )
+            results["Schrodinger"]["protein_rmsd"] = protein_rmsd
 
-            cmd.remove("hydro")
-
-            for pose_pdb in pose_pdb_files:
-                pose_id = os.path.basename(pose_pdb).replace(".pdb", "")
-                mob_obj = f"schro_{pose_id}"
-
-                # load pose (protein + ligand)
-                cmd.load(pose_pdb, mob_obj)
-
-                # ★ 핵심 추가: Schrödinger protein alignment
-                align_pose_protein_to_reference(
-                    pose_protein=f"{mob_obj} and polymer.protein",
-                    ref_protein="exp and polymer.protein",
-                    method="align"
-                )
-
-                lig_rmsd = plr.compute_ligand_rmsd(
-                    cmd,
-                    ref_obj="exp",
-                    mob_obj=mob_obj
-                )
-
-
-                schro_results.append({
-                    "pose_id": pose_id,
-                    "ligand_rmsd": lig_rmsd
-                })
-
-                cmd.delete(mob_obj)
-
-            results["Schrodinger"] = schro_results
-
-        
-
+    
     st.write(results)
