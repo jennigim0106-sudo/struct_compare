@@ -40,3 +40,32 @@ def fetch_pdb_structure(pdb_id, save_dir="data/pdb"):
 def extract_zip(zip_file, out_dir):
     with zipfile.ZipFile(zip_file, "r") as z:
         z.extractall(out_dir)
+
+
+# analysis/io.py
+import shutil
+
+def extract_plots_from_extracted_zip(
+    extracted_root: str,
+    run_tag: str,
+    save_root: str = "results/interactions/plots"
+):
+    """
+    extracted_root: zip을 extract한 tmpdir
+    run_tag: 6njs_1, 6njs_2 ...
+    """
+    collected = []
+
+    out_dir = os.path.join(save_root, run_tag)
+    os.makedirs(out_dir, exist_ok=True)
+
+    for root, dirs, files in os.walk(extracted_root):
+        if os.path.basename(root) == "plots":
+            for f in files:
+                if f.endswith(".png"):
+                    src = os.path.join(root, f)
+                    dst = os.path.join(out_dir, f)
+                    shutil.copy2(src, dst)
+                    collected.append(dst)
+
+    return collected

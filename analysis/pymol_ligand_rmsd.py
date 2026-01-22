@@ -6,6 +6,9 @@ from .io import extract_zip
 from .model_select import load_representative_model
 from .pymol_align import align_proteins
 import gemmi
+import pathlib
+
+from analysis.pymol_interactions import extract_interactions
 
 
 # Ligand exclusion lists
@@ -163,7 +166,7 @@ def export_aligned_ligands(cmd, ref_obj: str, mob_obj: str, ref_lig_sel: str, mo
 # -----------------------------
 # Single run analysis
 # -----------------------------
-def analyze_single_run(cmd, exp_ori, exp_obj, zip_file, tool):
+def analyze_single_run(cmd, exp_ori, exp_obj, zip_file, tool, result_dir):
     with tempfile.TemporaryDirectory() as tmpdir:
         extract_zip(zip_file, tmpdir)
         model_file = load_representative_model(tmpdir, tool)
@@ -191,10 +194,6 @@ def analyze_single_run(cmd, exp_ori, exp_obj, zip_file, tool):
 
         if tool == "boltz":
             mob_lig_sel = f"{mob_obj} and resn LIG"
-        ''' TODO: if schrodinger, must .. find ligand -> select multiple dockings -> run by docking poses
-        elif tool == "schro":
-            mob_lig_sel = f"{mob_obj} and "
-        '''
 
         out_dir = tmpdir
         run_tag = os.path.splitext(os.path.basename(
@@ -211,6 +210,8 @@ def analyze_single_run(cmd, exp_ori, exp_obj, zip_file, tool):
             tag=run_tag
         )
 
+
+        ####### RDKit ligand rmsd calc #########
         from .rdkit_ligand_rmsd import compute_rdkit_ligand_rmsd
 
         lig_rmsd = compute_rdkit_ligand_rmsd(
@@ -218,10 +219,40 @@ def analyze_single_run(cmd, exp_ori, exp_obj, zip_file, tool):
             lig_pdbs["mob_lig_pdb"]
         )
 
+        # Ligand–protein interaction analysis
+        interaction_csv = os.path.join(
+            result_dir,
+            f"{run_tag}_interactions.csv"
+        )
+        interaction_csv = str(interaction_csv)
+
+        df_interactions = extract_interactions(cmd=cmd,
+            protein_sel=f"{mob_obj} and polymer.protein",
+            ligand_sel=mob_lig_sel,
+            output_csv=interaction_csv,
+        )
+
+        import shutil  # 파일 복사 위해 필요
+
+        # --- Copy plots from TMPDIR to permanent results folder ---
+        from analysis.io import extract_plots_from_extracted_zip
+
+        plot_files = extract_plots_from_extracted_zip(
+            extracted_root=tmpdir,
+            run_tag=run_tag,
+            save_root="results/interactions/plots"
+        )
+
+
         cmd.delete(mob_obj)
         return {
             "run_name": getattr(zip_file, "name", os.path.basename(zip_file)),
-            "ligand_rmsd": lig_rmsd
+            "ligand_rmsd": lig_rmsd,
+            "interaction_df": df_interactions,
+            "interaction_csv": interaction_csv,
+            "protein_rmsd": align_result["rmsd"],   
+            "aligned_atoms": align_result["aligned_atoms"],
+            "plot_files": plot_files
         }
 
 
@@ -229,10 +260,10 @@ def analyze_single_run(cmd, exp_ori, exp_obj, zip_file, tool):
 # -----------------------------
 # Multiple runs
 # -----------------------------
-def analyze_runs(cmd, exp_ori, exp_obj, zip_files, tool):
+def analyze_runs(cmd, exp_ori, exp_obj, zip_files, tool, result_dir):
     run_results = []
     for zip_file in zip_files:
-        r = analyze_single_run(cmd, exp_ori, exp_obj, zip_file, tool)
+        r = analyze_single_run(cmd, exp_ori, exp_obj, zip_file, tool, result_dir)
         run_results.append(r)
     
     # mean_rmsd

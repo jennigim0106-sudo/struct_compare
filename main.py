@@ -8,6 +8,26 @@ from analysis.schrodinger_pose_export import export_selected_poses_to_pdb
 from analysis import pymol_ligand_rmsd as plr
 from analysis.io import fetch_pdb_structure
 
+<<<<<<< Updated upstream
+=======
+from analysis.schrodinger.io import (
+    extract_schrodinger_zip,
+    find_glide_csv,
+)
+from analysis.schrodinger.parse import parse_glide_csv
+from analysis.schrodinger.poses import (
+    find_pv_maegz,
+    parse_group_name_from_log,
+    get_docking_pose_objects,
+    map_selected_poses,
+)
+from analysis.schrodinger.pymol_align import (
+    align_schrodinger_protein_to_reference,
+)
+
+RESULT_DIR = "./results/interactions"
+os.makedirs(RESULT_DIR, exist_ok=True)
+>>>>>>> Stashed changes
 
 
 @st.cache_data
@@ -112,6 +132,7 @@ if st.button("Run Analysis"):
 
         # Boltz runs
         if boltz_zips:
+<<<<<<< Updated upstream
             results["Boltz"] = plr.analyze_runs(cmd, exp_file, "exp", boltz_zips, tool="boltz")
 
         # Schrodinger runs
@@ -130,7 +151,25 @@ if st.button("Run Analysis"):
         if pv_maegz is None:
             raise FileNotFoundError(
                 "No *_pv.maegz file found in extracted Schrödinger zip"
+=======
+            boltz_tmpdir = tempfile.mkdtemp(prefix="boltz_")
+
+            for uf in boltz_zips:
+                zip_path = os.path.join(boltz_tmpdir, uf.name)
+                with open(zip_path, "wb") as f:
+                    f.write(uf.read())
+                boltz_zip_paths.append(zip_path)
+
+            results["Boltz"] = plr.analyze_runs(
+                cmd,
+                exp_file,
+                "exp",
+                boltz_zip_paths,
+                tool="boltz",
+                result_dir=RESULT_DIR
+>>>>>>> Stashed changes
             )
+        st.session_state["results"] = results
 
 
         pose_pdb_files = export_selected_poses_to_pdb(
@@ -172,4 +211,66 @@ if st.button("Run Analysis"):
             results["Schrodinger"] = schro_results
         '''
 
+<<<<<<< Updated upstream
     st.write(results)
+=======
+
+# Representing Results
+
+results = st.session_state.get("results")
+
+if results and "Boltz" in results:
+    st.subheader("Boltz Interaction Results")
+
+    for run in results["Boltz"]["per_run"]:
+        csv_path = run.get("interaction_csv")
+        run_name = run.get("run_name", "Boltz")
+
+        st.markdown(f"### {run_name}")
+
+        # Protein alignment info
+        st.write(f"Protein Alignment RMSD: {run['protein_rmsd']:.3f} Å")
+        st.write(f"Aligned atoms: {run['aligned_atoms']}")
+
+        # Ligand RMSD
+        st.write(f"Ligand RMSD: {run['ligand_rmsd']:.3f}")
+
+        # Interaction CSV table
+        if csv_path and os.path.exists(csv_path):
+            df = pd.read_csv(csv_path)
+            st.dataframe(df)
+
+            with open(csv_path, "rb") as f:
+                st.download_button(
+                    label=f"Download {run_name} interactions",
+                    data=f,
+                    file_name=os.path.basename(csv_path),
+                    mime="text/csv",
+                )
+        else:
+            st.warning(f"Interaction CSV not found: {csv_path}")
+
+
+        # Plot images
+        plot_files = run.get("plot_files", [])
+        plot_files = sorted(
+            plot_files,
+            key=lambda p: (
+                "affinity" not in p,
+                "pae" not in p,
+                "plddt" not in p
+            )
+        )
+        
+        if plot_files:
+            st.subheader("Associated Plots")
+
+            # 1) 첫 번째 이미지 단독 표시 (affinity)
+            st.image(plot_files[0], width=700)
+
+            # 2) 나머지 이미지들 (PAE, pLDDT) → 한 줄 2개
+            if len(plot_files) > 1:
+                cols = st.columns(2)
+                for col, plot_path in zip(cols, plot_files[1:3]):
+                    col.image(plot_path, width=350)
+>>>>>>> Stashed changes
