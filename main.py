@@ -66,18 +66,39 @@ schro_workdir = st.session_state.get("schro_workdir")
 schro_df = st.session_state.get("schro_df")
 
 # pose selection
+
 selected_pose_ids = []
 
 if schro_df is not None:
     st.subheader("Schrödinger Docking Poses")
 
-    st.dataframe(
-        schro_df[["i_i_glide_lignum", "r_i_glide_gscore"]]
+    if "selected" not in schro_df.columns:
+        schro_df = schro_df.copy()
+        schro_df["selected"] = False
+
+    edited_df = st.data_editor(
+        schro_df[["selected", "i_i_glide_lignum", "r_i_glide_gscore"]],
+        column_config={
+            "selected": st.column_config.CheckboxColumn(
+                "Select",
+                help="Select docking pose"
+            ),
+            "i_i_glide_lignum": st.column_config.NumberColumn(
+                "Pose ID"
+            ),
+            "r_i_glide_gscore": st.column_config.NumberColumn(
+                "GlideScore",
+                format="%.3f"
+            ),
+        },
+        hide_index=True,
+        use_container_width=True,
     )
 
-    selected_pose_ids = st.multiselect(
-        "Select docking poses",
-        options = schro_df["i_i_glide_lignum"].astype(int).tolist()
+    selected_pose_ids = (
+        edited_df.loc[edited_df["selected"], "i_i_glide_lignum"]
+        .astype(int)
+        .tolist()
     )
 
 

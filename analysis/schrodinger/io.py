@@ -3,25 +3,20 @@ import zipfile
 import tempfile
 import os
 
-def extract_schrodinger_zip(zip_file_path: str) -> str:
-    '''
+def extract_schrodinger_zip(uploaded_zip) -> str:
+    if uploaded_zip is None:
+        raise ValueError("No Schrödinger ZIP file provided")
+
     tmpdir = tempfile.mkdtemp(prefix="schro_")
-    zip_path = os.path.join(tmpdir, zip_file.name)
 
-    with open(zip_path,"wb") as f:
-        f.write(zip_file.read())
+    zip_path = os.path.join(tmpdir, uploaded_zip.name)
 
+    # UploadedFile → 실제 zip 파일로 저장
+    with open(zip_path, "wb") as f:
+        f.write(uploaded_zip.read())
+
+    # zip extract
     with zipfile.ZipFile(zip_path, "r") as z:
-        z.extractall(tmpdir)
-
-    return tmpdir
-    '''
-    if not os.path.isfile(zip_file_path):
-        raise FileNotFoundError(f"ZIP file not found: {zip_file_path}")
-
-    tmpdir = tempfile.mkdtemp(prefix="schro_")
-
-    with zipfile.ZipFile(zip_file_path, "r") as z:
         z.extractall(tmpdir)
 
     return tmpdir
