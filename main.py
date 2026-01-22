@@ -3,31 +3,14 @@ import pymol2
 import os
 import tempfile
 import pandas as pd
-from analysis.schrodinger_io import extract_schrodinger_zip, parse_glide_csv
-from analysis.schrodinger_pose_export import export_selected_poses_to_pdb
+
 from analysis import pymol_ligand_rmsd as plr
 from analysis.io import fetch_pdb_structure
 
-<<<<<<< Updated upstream
-=======
-from analysis.schrodinger.io import (
-    extract_schrodinger_zip,
-    find_glide_csv,
-)
-from analysis.schrodinger.parse import parse_glide_csv
-from analysis.schrodinger.poses import (
-    find_pv_maegz,
-    parse_group_name_from_log,
-    get_docking_pose_objects,
-    map_selected_poses,
-)
-from analysis.schrodinger.pymol_align import (
-    align_schrodinger_protein_to_reference,
-)
 
 RESULT_DIR = "./results/interactions"
 os.makedirs(RESULT_DIR, exist_ok=True)
->>>>>>> Stashed changes
+
 
 
 @st.cache_data
@@ -132,27 +115,9 @@ if st.button("Run Analysis"):
 
         # Boltz runs
         if boltz_zips:
-<<<<<<< Updated upstream
-            results["Boltz"] = plr.analyze_runs(cmd, exp_file, "exp", boltz_zips, tool="boltz")
 
-        # Schrodinger runs
-        '''
-        pv_maegz = None
-
-        for root, _, files in os.walk(schro_pose_selection["extract_dir"]):
-            for f in files:
-                if f.endswith("_pv.maegz"):
-                    pv_maegz = os.path.join(root, f)
-                    break
-            if pv_maegz is not None:
-                break
-
-
-        if pv_maegz is None:
-            raise FileNotFoundError(
-                "No *_pv.maegz file found in extracted Schrödinger zip"
-=======
             boltz_tmpdir = tempfile.mkdtemp(prefix="boltz_")
+            boltz_zip_paths = []
 
             for uf in boltz_zips:
                 zip_path = os.path.join(boltz_tmpdir, uf.name)
@@ -167,53 +132,9 @@ if st.button("Run Analysis"):
                 boltz_zip_paths,
                 tool="boltz",
                 result_dir=RESULT_DIR
->>>>>>> Stashed changes
             )
         st.session_state["results"] = results
 
-
-        pose_pdb_files = export_selected_poses_to_pdb(
-            pv_maegz_path=pv_maegz,
-            pose_ids=schro_pose_selection["selected_poses"],
-            out_dir=os.path.join(schro_pose_selection["extract_dir"], "pdb_poses")
-        )
-
-        if schro_zip and schro_pose_selection:
-            schro_results = []
-
-            cmd.remove("hydro")
-            schro_extract_dir = schro_pose_selection["extract_dir"]
-
-            for pose_id in schro_pose_selection["selected_poses"]:
-                for pose_pdb in pose_pdb_files:
-                    pose_id = os.path.basename(pose_pdb).replace(".pdb", "")
-                    mob_obj = f"schro_{pose_id}"
-                    cmd.load(pose_pdb, mob_obj)
-
-                mob_obj = f"schro_{pose_id}"
-                cmd.load(pose_pdb, mob_obj)
-
-                lig_rmsd = compute_ligand_rmsd(
-                    cmd,
-                    exp_ori=exp_file,
-                    ref_obj="exp",
-                    mob_obj=mob_obj,
-                    tool_is_boltz=False
-                )
-
-                schro_results.append({
-                    "pose_id": pose_id,
-                    "ligand_rmsd": lig_rmsd
-                })
-
-                cmd.delete(mob_obj)
-
-            results["Schrodinger"] = schro_results
-        '''
-
-<<<<<<< Updated upstream
-    st.write(results)
-=======
 
 # Representing Results
 
@@ -273,4 +194,4 @@ if results and "Boltz" in results:
                 cols = st.columns(2)
                 for col, plot_path in zip(cols, plot_files[1:3]):
                     col.image(plot_path, width=350)
->>>>>>> Stashed changes
+
