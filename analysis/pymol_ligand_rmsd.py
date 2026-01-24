@@ -140,6 +140,19 @@ def detect_experimental_ligand(exp_ori):
     # Step 3: Return first ligand (can be first alphabetically or first in list)
     return ligands[0]
 
+def find_actual_pymol_ligand_resn(cmd, exp_obj, cif_comp_id):
+    """
+    CIF comp_id (e.g. A1AQQ) → PyMOL에서 실제 존재하는 resn 반환
+    """
+    # PDB resn은 최대 4자 → prefix match
+    candidates = cmd.get_model(f"{exp_obj} and not polymer").atom
+    resns = sorted(set(a.resn for a in candidates))
+
+    for r in resns:
+        if cif_comp_id.startswith(r):
+            return r
+
+    return None
 
 
 def export_aligned_ligands(cmd, ref_obj: str, mob_obj: str, ref_lig_sel: str, mob_lig_sel: str, out_dir: str, tag: str):
@@ -190,7 +203,14 @@ def analyze_single_run(cmd, exp_ori, exp_obj, zip_file, tool, result_dir):
         if ref_lig is None:
             raise ValueError("No experimental ligand detected")
 
-        ref_lig_sel = f"{exp_obj} and resn {ref_lig}"
+        actual_resn = find_actual_pymol_ligand_resn(cmd, exp_obj, ref_lig)
+        if actual_resn is None:
+            raise ValueError(
+                f"Experimental ligand '{ref_lig}' not found in PyMOL object (resn truncation issue)"
+            )
+
+        ref_lig_sel = f"{exp_obj} and resn {actual_resn}"
+
 
         if tool == "boltz":
             mob_lig_sel = f"{mob_obj} and resn LIG"
