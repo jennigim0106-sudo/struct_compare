@@ -154,6 +154,16 @@ def find_actual_pymol_ligand_resn(cmd, exp_obj, cif_comp_id):
 
     return None
 
+def detect_ligand_chain(cmd, obj, lig_resn):
+    """
+    Experimental ligand가 속한 chain ID를 반환
+    (homodimer 대응용)
+    """
+    model = cmd.get_model(f"{obj} and resn {lig_resn}")
+    if not model.atom:
+        return None
+    return model.atom[0].chain
+
 
 def export_aligned_ligands(cmd, ref_obj: str, mob_obj: str, ref_lig_sel: str, mob_lig_sel: str, out_dir: str, tag: str):
     # Exports aligned ligands as PDB files for RDKit RMSD.
@@ -187,17 +197,7 @@ def analyze_single_run(cmd, exp_ori, exp_obj, zip_file, tool, result_dir):
         mob_obj = f"model_{os.path.splitext(os.path.basename(zip_file))[0]}"
         cmd.load(model_file, mob_obj)
 
-        ######## PROTEIN ALIGNMENT ##########
-        align_result = align_proteins(
-            cmd = cmd,
-            ref_obj=exp_obj,
-            mob_obj=mob_obj,
-            ref_sel="polymer.protein",
-            mob_sel="polymer.protein",
-            method="align"   # or "super" later if needed
-        )
-        print("Protein alignment RMSD:", align_result["rmsd"], "/ aligned atoms:", align_result["aligned_atoms"])
-
+ 
         ######### selecting ligand for comparison ###########
         ref_lig = detect_experimental_ligand(exp_ori)
         if ref_lig is None:
@@ -208,8 +208,26 @@ def analyze_single_run(cmd, exp_ori, exp_obj, zip_file, tool, result_dir):
             raise ValueError(
                 f"Experimental ligand '{ref_lig}' not found in PyMOL object (resn truncation issue)"
             )
+        
+        # --- detect ligand chain (for homo-multimer cases) ---
+        lig_chain = detect_ligand_chain(cmd, exp_obj, actual_resn)
+        if lig_chain is None:
+            raise ValueError("Failed to detect ligand chain")
 
-        ref_lig_sel = f"{exp_obj} and resn {actual_resn}"
+       ######## PROTEIN ALIGNMENT ##########
+        align_result = align_proteins(
+            cmd = cmd,
+            ref_obj=exp_obj,
+            mob_obj=mob_obj,
+            ref_sel=f"polymer.protein and chain {lig_chain}",
+            mob_sel="polymer.protein",
+            method="align"
+        )
+
+        print("Protein alignment RMSD:", align_result["rmsd"], "/ aligned atoms:", align_result["aligned_atoms"])
+
+
+        ref_lig_sel = f"{exp_obj} and resn {actual_resn} and chain {lig_chain}"
 
 
         if tool == "boltz":
